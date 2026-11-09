@@ -1,0 +1,29 @@
+{
+  "schema": "MedPlay.R8622PublicSyntheticReviewPolicy/1",
+  "policyVersion": "r8622.0",
+  "classification": "PUBLIC_SYNTHETIC_ONLY",
+  "reviewMode": "SINGLE_OWNER_AUTOMATED",
+  "reviewScope": "SYNTHETIC_SOURCE_REVIEW",
+  "allowedRepository": "draugustogalvao-pixel/medplay-synthetic-transparency",
+  "allowedRef": "refs/heads/main",
+  "allowedEvent": "workflow_dispatch",
+  "manifestPath": "manifest/synthetic-anchor.json",
+  "expectedManifestSha256": "8d9660f0bdc599e5852dff53fc2df0032c2e9e4f41bc8605fe7696dc07cfddd0",
+  "expectedSampleSha256": "7ccd11385e22b140b25b41e397c8e17b1e07a4c7a2eefc6545b735f9d5531af7",
+  "expectedSampleBytes": 56,
+  "requiredClaimsFalse": [
+    "independent_custody_verified",
+    "independent_review_verified",
+    "distributed_stop_verified",
+    "dx05_production_go"
+  ],
+  "reviewFindingWhenPassing": "SYNTHETIC_SOURCE_CHECKS_PASS_ONLY",
+  "originalDX05StrictModeStillActive": true,
+  "ownerScopeApprovedInConversationNotNativeSigned": true,
+  "reviewerAdministrativelyIndependent": false,
+  "policyActiveInOwnerService": false,
+  "mayIssueDX05OwnerAct": false,
+  "mayGrantIAM": false,
+  "mayStartCloudVM": false,
+  "mayAuthorizeClinicalProduction": false
+}
