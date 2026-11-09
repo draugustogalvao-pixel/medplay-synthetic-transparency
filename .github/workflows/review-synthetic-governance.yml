@@ -1,0 +1,100 @@
+name: MedPlay R8622 synthetic-only automated review
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: r8622-synthetic-review-\${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  review-and-sign:
+    if: github.repository == 'draugustogalvao-pixel/medplay-synthetic-transparency' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout strictly public synthetic source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Pin exact public policy, reviewer and manifest source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > public-expected-sha256.txt <<'SHA256'
+          cdfe07682e4e18a70cb1fb60d6f589ff79998cb8e1500bebae0f7a1dbf715495  scripts/review_synthetic.py
+          28067d056aa962bb72d71f8c4d5136305776640ba7067ca1194a46591e5308e8  policy/synthetic-review-policy.json
+          8d9660f0bdc599e5852dff53fc2df0032c2e9e4f41bc8605fe7696dc07cfddd0  manifest/synthetic-anchor.json
+          SHA256
+          sha256sum --check --status public-expected-sha256.txt
+          echo R8622_SOURCE_SHA256_PINS_PASS
+
+      - name: Execute deterministic synthetic-only negative tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -B scripts/review_synthetic.py \
+            --policy policy/synthetic-review-policy.json \
+            --manifest manifest/synthetic-anchor.json \
+            --self-test
+
+      - name: Generate non-authoritative public review receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -B scripts/review_synthetic.py \
+            --policy policy/synthetic-review-policy.json \
+            --manifest manifest/synthetic-anchor.json \
+            --output review-receipt.json
+          python3 -I -B - <<'PY'
+          import json
+          receipt=json.load(open('review-receipt.json',encoding='utf-8'))
+          assert receipt['status']=='SYNTHETIC_SOURCE_CHECKS_PASS_ONLY'
+          assert receipt['reviewerAdministrativelyIndependent'] is False
+          assert receipt['strictDX05IndependentHumanReviewerSatisfied'] is False
+          assert receipt['policyActiveInDX05'] is False
+          assert all(receipt[k] is False for k in ('authorizesOwnerAct','authorizesIAM','authorizesCloudVM','authorizesClinicalProduction','BOOTSTRAP_GO','DX_DEV_OPERATIONS_GO','GLOBAL_PRODUCTION_GO'))
+          print('R8622_REVIEW_NON_AUTHORITY_GUARD_PASS')
+          PY
+
+      - name: Install pinned Sigstore Cosign
+        uses: sigstore/cosign-installer@ba7bc0a3fef59531c69a25acd34668d6d3fe6f22 # v4.1.0
+
+      - name: Sign synthetic-only review receipt with short-lived GitHub OIDC
+        shell: bash
+        run: |
+          set -euo pipefail
+          cosign sign-blob --yes \
+            --bundle review-receipt.sigstore.json \
+            review-receipt.json
+
+      - name: Verify identity, signature and transparency bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          cosign verify-blob review-receipt.json \
+            --bundle review-receipt.sigstore.json \
+            --certificate-identity 'https://github.com/draugustogalvao-pixel/medplay-synthetic-transparency/.github/workflows/review-synthetic-governance.yml@refs/heads/main' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com
+          echo R8622_SIGSTORE_REVIEW_BUNDLE_VERIFIED
+
+      - name: Archive public synthetic-only evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: medplay-r8622-synthetic-review
+          path: |
+            review-receipt.json
+            review-receipt.sigstore.json
+            scripts/review_synthetic.py
+            policy/synthetic-review-policy.json
+            manifest/synthetic-anchor.json
+          if-no-files-found: error
+          retention-days: 30
