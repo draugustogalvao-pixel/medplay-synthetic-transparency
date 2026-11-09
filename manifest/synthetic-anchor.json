@@ -1,0 +1,15 @@
+{
+  "schema": "MedPlay.PublicSyntheticAnchor/1",
+  "classification": "PUBLIC_SYNTHETIC_ONLY",
+  "sample": {
+    "kind": "fixed-nonclinical-laboratory-string",
+    "sha256": "7ccd11385e22b140b25b41e397c8e17b1e07a4c7a2eefc6545b735f9d5531af7",
+    "size_bytes": 56
+  },
+  "claims": {
+    "independent_custody_verified": false,
+    "independent_review_verified": false,
+    "distributed_stop_verified": false,
+    "dx05_production_go": false
+  }
+}
