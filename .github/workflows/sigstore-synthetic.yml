@@ -1,0 +1,76 @@
+name: MedPlay synthetic Sigstore witness
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: medplay-synthetic-witness-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  sign-synthetic-anchor:
+    if: github.repository == 'draugustogalvao-pixel/medplay-synthetic-transparency' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout public synthetic manifest
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install Sigstore Cosign
+        uses: sigstore/cosign-installer@v4.1.0
+
+      - name: Gate fixed synthetic-only contents
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          doc = json.loads(Path('manifest/synthetic-anchor.json').read_text('utf-8'))
+          assert doc['schema'] == 'MedPlay.PublicSyntheticAnchor/1'
+          assert doc['classification'] == 'PUBLIC_SYNTHETIC_ONLY'
+          assert doc['sample'] == {
+              'kind': 'fixed-nonclinical-laboratory-string',
+              'sha256': '7ccd11385e22b140b25b41e397c8e17b1e07a4c7a2eefc6545b735f9d5531af7',
+              'size_bytes': 56
+          }
+          assert doc['claims'] == {
+              'independent_custody_verified': False,
+              'independent_review_verified': False,
+              'distributed_stop_verified': False,
+              'dx05_production_go': False
+          }
+          print('PUBLIC_SYNTHETIC_ONLY_GATE_PASS')
+          PY
+
+      - name: Sign fixed manifest with GitHub OIDC and Rekor
+        shell: bash
+        run: |
+          set -euo pipefail
+          cosign sign-blob --yes --bundle sigstore.bundle.json manifest/synthetic-anchor.json
+
+      - name: Verify GitHub workflow certificate and Rekor bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          cosign verify-blob manifest/synthetic-anchor.json \
+            --bundle sigstore.bundle.json \
+            --certificate-identity "https://github.com/${{ github.repository }}/.github/workflows/sigstore-synthetic.yml@refs/heads/main" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com
+
+      - name: Save public verification evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: medplay-synthetic-rekor-bundle
+          path: |
+            sigstore.bundle.json
+            manifest/synthetic-anchor.json
+          if-no-files-found: error
+          retention-days: 30
